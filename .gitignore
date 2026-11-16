@@ -1,0 +1,16 @@
+# Vendor / NDA IP - never commit
+*sram_1024x32*
+*.lib
+*.lef
+*.db
+*.gds
+*.oas
+# Build / sim output
+build/
+xcelium.d/
+INCA_libs/
+*.shm/
+*.trn
+*.dsn
+*.log
+*.history
