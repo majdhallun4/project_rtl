@@ -18,7 +18,11 @@
  * Synthesis: compile with SYNTHESIS defined (Genus: read_hdl -define SYNTHESIS).
  */
 
+// Timescale only for simulation: the vendor RTL (Ibex/prim/systolic array)
+// has none, so a timescale here would leak into later files in the list.
+`ifndef SYNTHESIS
 `timescale 1ns/1ps
+`endif
 
 // Firmware preload prefix can be given from the xrun command line:
 //   +define+MEM_INIT_PREFIX=\"<dir>/tdcim_fw\"
@@ -34,9 +38,12 @@
   `define TDCIM_IBEX_TOP ibex_top_tracing
 `endif
 
+/* verilator lint_off UNUSEDPARAM */
 module tdcim_top #(
   // Kept only so the existing tb_tdcim_top.sv compiles unchanged. Not used any more.
-  parameter string SRAMInitFile = "",
+  // Untyped on purpose: Genus rejects `parameter string`; an untyped parameter
+  // still accepts a string literal override from the testbench.
+  parameter SRAMInitFile = "",
   // Backdoor-load prefix for simulation, e.g. "build/main" loads
   // build/main_imem_b0..3.memb and build/main_dmem.memb (see vmem_split.py).
   // Empty = no preload. Ignored in synthesis.
@@ -45,6 +52,7 @@ module tdcim_top #(
   input logic IO_CLK,
   input logic IO_RST_N
 );
+/* verilator lint_on UNUSEDPARAM */
 
   // Parameters and device indices
   localparam int Imem      = 0;
@@ -140,6 +148,8 @@ module tdcim_top #(
   );
 
   // Ibex (single hart). ibex_top_tracing = ibex_top + trace logging (sim only).
+  // Unused outputs are left open on purpose.
+  /* verilator lint_off PINCONNECTEMPTY */
   `TDCIM_IBEX_TOP u_ibex_top (
     .clk_i                     (clk_sys),
     .rst_ni                    (rst_sys_n),
@@ -196,6 +206,7 @@ module tdcim_top #(
     .instr_req_shadow_o        (),
     .instr_addr_shadow_o       ()
   );
+  /* verilator lint_on PINCONNECTEMPTY */
 
   // ---------------------------------------------------------------------------
   // IMEM (device 0) - shared by bus (data port: .rodata, .data LMA) and instr port
@@ -304,6 +315,7 @@ module tdcim_top #(
   assign device_err[SimCtrl] = 1'b0;
 
   // timer (device 2)
+  /* verilator lint_off PINCONNECTEMPTY */
   timer #(.DataWidth(32), .AddressWidth(32)) u_timer (
     .clk_i          (clk_sys),
     .rst_ni         (rst_sys_n),
@@ -315,8 +327,9 @@ module tdcim_top #(
     .timer_rvalid_o (device_rvalid[Timer]),
     .timer_rdata_o  (device_rdata[Timer]),
     .timer_err_o    (device_err[Timer]),
-    .timer_intr_o   ()
+    .timer_intr_o   ()   // timer IRQ not used
   );
+  /* verilator lint_on PINCONNECTEMPTY */
 
   // ---------------------------------------------------------------------------
   // Macro CSR (device 3) + systolic array  (unchanged)
@@ -403,6 +416,10 @@ module tdcim_top #(
       end
     end
   end
+
+  // macro_csr outputs not wired anywhere yet (IRQs are not routed to Ibex).
+  logic unused_macro_outputs;
+  assign unused_macro_outputs = ^{done_irq, error_irq, macro_en, macro_mode};
 
   assign device_rdata[Macro]  = macro_rdata_q;
   assign device_rvalid[Macro] = macro_rvalid_q;
