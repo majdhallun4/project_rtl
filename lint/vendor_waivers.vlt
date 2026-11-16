@@ -1,0 +1,8 @@
+`verilator_config
+// Optional: silence -Wall style warnings that come only from third-party RTL
+// (Ibex / lowRISC prims). Your own files (rtl/) are lint-clean without this.
+// Usage: put this file BEFORE the sources on the verilator command line.
+lint_off -rule PINCONNECTEMPTY -file "*vendor/*"
+lint_off -rule UNUSEDPARAM     -file "*vendor/*"
+lint_off -rule UNUSEDSIGNAL    -file "*vendor/*"
+lint_off -rule DECLFILENAME    -file "*vendor/*"

@@ -8,7 +8,11 @@
  *   0x4000_0000 - 0x4000_00FF : macro CSR region
  */
 
+// Timescale only for simulation: the vendor RTL (Ibex/prim/systolic array)
+// has none, so a timescale here would leak into later files in the list.
+`ifndef SYNTHESIS
 `timescale 1ns/1ps
+`endif
 
 module bus_decoder #(
     parameter BASE_ADDR = 32'h4000_0000,
