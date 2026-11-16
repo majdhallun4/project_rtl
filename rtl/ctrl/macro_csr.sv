@@ -24,10 +24,15 @@
  *                              latched from macro output on DONE)
  */
 
+// Timescale only for simulation: the vendor RTL (Ibex/prim/systolic array)
+// has none, so a timescale here would leak into later files in the list.
+`ifndef SYNTHESIS
 `timescale 1ns/1ps
+`endif
 
+/* verilator lint_off UNUSEDPARAM */
 module macro_csr #(
-    parameter CYCLE_DELAY = 100  // How many cycles BUSY lasts (fake execution)
+    parameter CYCLE_DELAY = 100  // Legacy (fake execution length); no longer used
 ) (
     input  logic        clk,
     input  logic        rst_n,
@@ -55,6 +60,7 @@ module macro_csr #(
     input  logic [31:0] macro_c_in  [0:15],  // Result C <- macro outputs (latched on DONE)
     output logic         macro_start          // One-cycle pulse -> macro's i_validInput
 );
+/* verilator lint_on UNUSEDPARAM */
 
     // ===== Register File =====
     logic [31:0] macro_ctrl;
@@ -74,6 +80,10 @@ module macro_csr #(
     // Word index into a 16-word block from a 12-bit byte address
     logic [3:0]  word_idx;
     assign word_idx = reg_addr[5:2];
+
+    // Reads are combinational and side-effect free, so the read strobe is unused.
+    logic unused_reg_read;
+    assign unused_reg_read = reg_read;
 
     // ===== Control signals =====
     logic        start_pulse;           // START bit write (self-clearing)
@@ -190,75 +200,77 @@ module macro_csr #(
                 b_data[i] <= 32'h0;
                 c_data[i] <= 32'h0;
             end
-        end else if (soft_reset) begin
-            // Soft reset clears most regs
-            macro_ctrl       <= 32'h0;
-            macro_config0    <= 32'h0;
-            macro_config1    <= 32'h0;
-            macro_irq_en     <= 32'h0;
-            macro_irq_status <= 32'h0;
-            // Results preserved for readout
-        end else if (reg_write) begin
-            if (reg_addr inside {[12'h100:12'h13F]}) begin
-                // A_DATA: firmware-writable operand block
-                a_data[word_idx] <= reg_wdata;
-            end else if (reg_addr inside {[12'h300:12'h33F]}) begin
-                // B_DATA: firmware-writable operand block
-                b_data[word_idx] <= reg_wdata;
-            end else if (reg_addr inside {[12'h500:12'h53F]}) begin
-                // C_DATA: read-only, populated from macro_c_in on DONE below.
-                // Bus writes here are ignored (same convention as RESULT0/1).
-            end else begin
-                case (reg_addr)
-                    12'h000: begin
-                        // MACRO_CTRL: START self-clears, SOFT_RESET and MODE persist
-                        macro_ctrl[0] <= 1'b0;           // START auto-clear
-                        macro_ctrl[1] <= reg_wdata[1];   // SOFT_RESET
-                        macro_ctrl[3:2] <= reg_wdata[3:2]; // MODE
-                    end
-                    12'h004: begin
-                        // MACRO_STATUS: Read-only, ignore writes
-                    end
-                    12'h008: begin
-                        macro_config0 <= reg_wdata;
-                    end
-                    12'h00C: begin
-                        macro_config1 <= reg_wdata;
-                    end
-                    12'h010: begin
-                        // MACRO_RESULT0: Read-only for now
-                    end
-                    12'h014: begin
-                        // MACRO_RESULT1: Read-only for now
-                    end
-                    12'h018: begin
-                        macro_irq_en <= reg_wdata;
-                    end
-                    12'h01C: begin
-                        // MACRO_IRQ_STATUS: Write-1-to-clear
-                        macro_irq_status <= macro_irq_status & ~reg_wdata;
-                    end
-                    default: begin
-                        // Unmapped address, do nothing
-                    end
-                endcase
+        end else begin
+            if (soft_reset) begin
+                // Soft reset clears most regs
+                macro_ctrl       <= 32'h0;
+                macro_config0    <= 32'h0;
+                macro_config1    <= 32'h0;
+                macro_irq_en     <= 32'h0;
+                macro_irq_status <= 32'h0;
+                // Results preserved for readout
+            end else if (reg_write) begin
+                if (reg_addr inside {[12'h100:12'h13F]}) begin
+                    // A_DATA: firmware-writable operand block
+                    a_data[word_idx] <= reg_wdata;
+                end else if (reg_addr inside {[12'h300:12'h33F]}) begin
+                    // B_DATA: firmware-writable operand block
+                    b_data[word_idx] <= reg_wdata;
+                end else if (reg_addr inside {[12'h500:12'h53F]}) begin
+                    // C_DATA: read-only, populated from macro_c_in on DONE below.
+                    // Bus writes here are ignored (same convention as RESULT0/1).
+                end else begin
+                    case (reg_addr)
+                        12'h000: begin
+                            // MACRO_CTRL: START self-clears, SOFT_RESET and MODE persist
+                            macro_ctrl[0] <= 1'b0;           // START auto-clear
+                            macro_ctrl[1] <= reg_wdata[1];   // SOFT_RESET
+                            macro_ctrl[3:2] <= reg_wdata[3:2]; // MODE
+                        end
+                        12'h004: begin
+                            // MACRO_STATUS: Read-only, ignore writes
+                        end
+                        12'h008: begin
+                            macro_config0 <= reg_wdata;
+                        end
+                        12'h00C: begin
+                            macro_config1 <= reg_wdata;
+                        end
+                        12'h010: begin
+                            // MACRO_RESULT0: Read-only for now
+                        end
+                        12'h014: begin
+                            // MACRO_RESULT1: Read-only for now
+                        end
+                        12'h018: begin
+                            macro_irq_en <= reg_wdata;
+                        end
+                        12'h01C: begin
+                            // MACRO_IRQ_STATUS: Write-1-to-clear
+                            macro_irq_status <= macro_irq_status & ~reg_wdata;
+                        end
+                        default: begin
+                            // Unmapped address, do nothing
+                        end
+                    endcase
+                end
             end
-        end
 
-        // Auto-update results (fake macro computation, legacy placeholder)
-        // In real design, these come from analog macroRESULT0
-        if (state == DONE) begin
-            macro_result0 <= macro_config0 + 32'h1000;  // Dummy: config0 + offset
-            macro_result1 <= macro_config1 + 32'h2000;  // Dummy: config1 + offset
-        end
+            // Auto-update results (fake macro computation, legacy placeholder)
+            // In real design, these come from analog macroRESULT0
+            if (state == DONE) begin
+                macro_result0 <= macro_config0 + 32'h1000;  // Dummy: config0 + offset
+                macro_result1 <= macro_config1 + 32'h2000;  // Dummy: config1 + offset
+            end
 
-        // Latch real macro result into C_DATA the cycle completion is seen.
-        // Uses state==BUSY && macro_done (not state==DONE) so the value is
-        // captured on the same edge the macro asserts it, one cycle before
-        // the FSM itself reaches DONE.
-        if (state == BUSY && macro_done) begin
-            for (int i = 0; i < 16; i++) begin
-                c_data[i] <= macro_c_in[i];
+            // Latch real macro result into C_DATA the cycle completion is seen.
+            // Uses state==BUSY && macro_done (not state==DONE) so the value is
+            // captured on the same edge the macro asserts it, one cycle before
+            // the FSM itself reaches DONE.
+            if (state == BUSY && macro_done) begin
+                for (int i = 0; i < 16; i++) begin
+                    c_data[i] <= macro_c_in[i];
+                end
             end
         end
     end

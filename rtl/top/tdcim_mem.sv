@@ -25,11 +25,13 @@
 // generated sram_*.v. Synthesis only sees these constants; in simulation the
 // wrappers compare them against the defines and stop with $fatal on mismatch.
 // -----------------------------------------------------------------------------
+/* verilator lint_off DECLFILENAME */
 package sram_tie_pkg;
   localparam logic [2:0] EMA  = 3'd7;
   localparam logic [1:0] EMAW = 2'd3;
   localparam logic       EMAS = 1'b1;
 endpackage
+/* verilator lint_on DECLFILENAME */
 
 // =============================================================================
 // IMEM : 16 KiB, 4 banks of sram_1024x32.  addr[13:12] = bank, addr[11:2] = word
@@ -87,6 +89,10 @@ module imem_obi (
   end
 
   assign rdata_o = q[bank_q];
+
+  // Only word address bits [13:2] select a location in the 16 KiB IMEM.
+  logic unused_addr;
+  assign unused_addr = ^{addr_i[31:14], addr_i[1:0]};
 
 `ifndef SYNTHESIS
 `ifdef SRAM_SP_HSC_RVT_RVT_ARM_REF_EMA_VALUE
@@ -183,6 +189,10 @@ module dmem_obi (
 
   assign rdata_o = q;
   assign err_o   = 1'b0;
+
+  // Only word address bits [11:2] select a location in the 4 KiB DMEM.
+  logic unused_addr;
+  assign unused_addr = ^{addr_i[31:12], addr_i[1:0]};
 
 `ifndef SYNTHESIS
 `ifdef SRAM_SP_HSC_RVT_RVT_ARM_REF_EMA_VALUE
