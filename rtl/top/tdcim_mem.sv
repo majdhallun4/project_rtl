@@ -66,7 +66,7 @@ module imem_obi (
   end
 
   for (genvar b = 0; b < 4; b++) begin : gen_bank
-    sram_1024x32 u_mem (
+    sram_sp_1024x32 u_mem (
       .Q(q[b]), .CLK(clk_i), .CEN(cen_n[b]), .WEN(wen_n),
       .A(addr_i[11:2]), .D(wdata_i),
       .EMA(sram_tie_pkg::EMA), .EMAW(sram_tie_pkg::EMAW), .EMAS(sram_tie_pkg::EMAS),
@@ -164,7 +164,7 @@ module dmem_obi (
     end
   end
 
-  sram_1024x32 u_mem (
+  sram_sp_1024x32 u_mem (
     .Q(q), .CLK(clk_i), .CEN(cen_n), .WEN(wen_n),
     .A(addr_i[11:2]), .D(d),
     .EMA(sram_tie_pkg::EMA), .EMAW(sram_tie_pkg::EMAW), .EMAS(sram_tie_pkg::EMAS),
